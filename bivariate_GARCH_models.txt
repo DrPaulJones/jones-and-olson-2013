@@ -1,0 +1,160 @@
+cal(m) 1985 1 1
+all 2012:1
+open data
+data(format=xls,org=obs)
+tab
+dis uncert(1)
+dis inf(2)
+set dummy = %if(t>=2007:07,1,0)
+set ip_us = 1200*(log(ip) - log(ip{1}))
+set inf = 1200*(log(cpi) - log(cpi{1}))
+gra 1; # inf 1 3
+
+set contraction = t>=1990:07.and.t<=1991:03.or.t>=2001:03.and.t<=2001:11.or.t>=2007:12.and.t<=2009:06
+set Hamilton = t>=1957:04.and.t<=1958:04.or.t>=1973:03.and.t<=1975:01.or.t>=1979:03.and.t<=1982:03.or.t>=1990:04.and.t<=1992:02.or.t>=2005:01.and.t<2007:01.or.t>=2007:04.and.t<=2008:03
+
+
+********Output, Uncertainty - bivariate GARCH-M model*********
+
+dec symm[series] hhs(2,2)
+do i= 1,2
+	do j=1,i
+		set hhs(i,j) / = 0.0
+     end do j
+end do i
+
+com lags = 9
+
+equation us ip_us
+# constant ip_us{1 to lags} uncert{1 to lags} hhs(1,1) hhs(2,2)
+equation unc uncert
+# constant ip_us{1 to lags} uncert{1 to lags} dummy hhs(1,1) hhs(2,2)
+group means us unc
+garch(p=1,q=1,model=means,mvhseries=hhs,rvectors=rd,hmatrices=hd,method=bfgs,iters=500,mv=dcc,pmethod=simplex,piters=100) / ip_us uncert
+
+
+set std1 %regstart() %regend() = rd(t)(1)/sqrt(hd(t)(1,1))
+set std2 %regstart() %regend() = rd(t)(2)/sqrt(hd(t)(2,2))
+
+
+cor(qstats,span=4,number=12) std1
+cor(qstats,span=4,number=12) std2
+
+
+set r2 = std1^2
+set r21 = std2^2
+
+cor(qstats,span=4,number=12) r2
+cor(qstats,span=4,number=12) r21
+
+
+set cor1 %regstart() %regend() = hhs(1,2)/sqrt(hd(t)(1,1)*hd(t)(2,2))
+
+graph(grid=hamilton,shading=contraction,hea="Output/Uncertainty Correlation") 1 ; # cor1
+
+*****************************************************************************************************
+********Inflation, Uncertainty - bivariate GARCH-M model*********
+
+dec symm[series] hhs(2,2)
+do i= 1,2
+	do j=1,i
+		set hhs(i,j) / = 0.0
+     end do j
+end do i
+
+com lags = 9
+
+equation infl inf
+# constant inf{1 to lags} uncert{1 to lags} hhs(1,1) hhs(2,2)
+equation unc uncert
+# constant inf{1 to lags} uncert{1 to lags} dummy hhs(1,1) hhs(2,2)
+group means infl unc
+garch(p=1,q=1,model=means,mvhseries=hhs,rvectors=rd,hmatrices=hd,method=bfgs,iters=500,mv=dcc,pmethod=simplex,piters=100) / inf uncert
+
+
+set std1 %regstart() %regend() = rd(t)(1)/sqrt(hd(t)(1,1))
+set std2 %regstart() %regend() = rd(t)(2)/sqrt(hd(t)(2,2))
+
+
+cor(qstats,span=4,number=12) std1
+cor(qstats,span=4,number=12) std2
+
+
+set r2 = std1^2
+set r21 = std2^2
+
+cor(qstats,span=4,number=12) r2
+cor(qstats,span=4,number=12) r21
+
+
+set cor1 %regstart() %regend() = hhs(1,2)/sqrt(hd(t)(1,1)*hd(t)(2,2))
+set cor2 %regstart() %regend() = hhs(1,2)/sqrt(hhs(1,1)*hhs(2,2))
+
+graph(grid=hamilton,shading=contraction,hea="Inflation/Uncertainty Correlation") 1 ; # cor1
+sta cor2
+*********************************************************************************************
+
+
+dec vect[series] resample(2) udraws(2)
+dec vect rep1(1000) rep2(1000)
+dec vector[series] responses(24)
+
+do i = 1,24
+	set responses(i) 1 10 = 0.
+end do i
+tab
+sta resample(1)
+gra 2; # inf; # uncert
+dis resample(2)(1)
+dis inf(2)
+do i = 1 , 10
+	boot(block=100) entries
+	com i = 1
+	com resample(1)(1) = uncert(i)
+*	com resample(2)(1) = inf(i+1)
+	set resample(i) 2 * = uncert(entries(t))
+*	set resample(2) 2 * = inf(entries(t))
+	com lags = 9
+	equation unc resample(1)
+	# constant resample(1){1 to lags} resample(2){1 to lags} hhs(1,1) hhs(2,2) dummy
+	equation infl resample(2)
+	# constant resample(2){1 to lags} resample(1){1 to lags} hhs(1,1) hhs(2,2)
+	group means unc infl
+	garch(p=1,q=1,model=means,mvhseries=hhs,rvectors=rd,hmatrices=hd,method=bfgs,iters=500,mv=dcc,pmethod=simplex,piters=100) /
+	set cor1 %regstart() %regend() = hhs(1,2)/sqrt(hd(t)(1,1)*hd(t)(2,2))
+	com responses(1)(i) = cor1(10)
+	com responses(2)(i) = cor1(11)
+	com responses(3)(i) = cor1(12)
+	com responses(4)(i) = cor1(13)
+	com responses(5)(i) = cor1(14)
+	com responses(6)(i) = cor1(15)
+	com responses(7)(i) = cor1(16)
+	com responses(8)(i) = cor1(17)
+	com responses(9)(i) = cor1(18)
+	com responses(10)(i) = cor1(19)
+	com responses(11)(i) = cor1(20)
+	com responses(12)(i) = cor1(21)
+	com responses(13)(i) = cor1(22)
+	com responses(14)(i) = cor1(23)
+	com responses(15)(i) = cor1(24)
+	com responses(16)(i) = cor1(25)
+	com responses(17)(i) = cor1(26)
+	com responses(18)(i) = cor1(27)
+	com responses(19)(i) = cor1(28)
+	com responses(20)(i) = cor1(29)
+	com responses(21)(i) = cor1(30)
+	com responses(22)(i) = cor1(31)
+	com responses(23)(i) = cor1(32)
+	com responses(24)(i) = cor1(33)
+end do draws
+dis responses(1)(1)
+pri / responses(1)
+gra 1; # responses(1)
+set mp1 1985:1 * = 0.   ; set high 1985:1 * = 0. ; set low 1985:1 * = 0.
+do i = 1,24
+    sta(fractiles,print) responses(i)
+    com mp1(1985:1+i) = %mean , high(1985:1+i) = %fract95 , low(1985:1+i) = %fract05
+end do
+gra 2 ;# high 1985:1 1985:1+23; # low 1985:1 1985:1+23
+
+
